@@ -2,7 +2,6 @@ import { asyncHandler } from "../utils/asyncHandler.js";
 import {ApiError} from "../utils/ApiError.js"
 import { User } from "../models/user.model.js"
 import { uploadOnCloudinary } from "../utils/cloudinary.js"
-import { ApiError } from "../utils/ApiError.js";
 import { ApiResponse } from "../utils/ApiResponse.js";
 
 
@@ -32,57 +31,56 @@ const registerUser=asyncHandler(async (req,res)=>{
     
 
     //check if user already exist: username and email
-    const existedUser = User.findOne({
-        $or : [{email},{username}]
+    const existedUser = await User.findOne({
+        $or: [{ username }, { email }]
     })
 
-    if(existedUser){
-        throw new ApiError(409,"User With email or username already exists")
+    if (existedUser) {
+        throw new ApiError(409, "User with email or username already exists")
+    }
+    //console.log(req.files);
+
+    const avatarLocalPath = req.files?.avatar[0]?.path;
+    //const coverImageLocalPath = req.files?.coverImage[0]?.path;
+
+    let coverImageLocalPath;
+    if (req.files && Array.isArray(req.files.coverImage) && req.files.coverImage.length > 0) {
+        coverImageLocalPath = req.files.coverImage[0].path
     }
     
-    // check for images and avatar
 
-    const avatarLocalpath=req.files?.avatar[0]?.path;
-    const coverImageLocalpath=req.files?.coverImage[0]?.path;
-
-    if(!avatarLocalpath){
-        throw new ApiError(400,"avatar file is required")
+    if (!avatarLocalPath) {
+        throw new ApiError(400, "Avatar file is required")
     }
 
-    //upload the cloudinary , avatar
-    
-    const avatar = await uploadOnCloudinary(avatarLocalpath);
-    const coverImage=await uploadOnCloudinary(coverImageLocalpath)
+    const avatar = await uploadOnCloudinary(avatarLocalPath)
+    const coverImage = await uploadOnCloudinary(coverImageLocalPath)
 
-    if(!avatar){
-        throw new ApiError(400,"Avatar file is required")
+    if (!avatar) {
+        throw new ApiError(400, "Avatar file is required")
     }
-
-    // create user object - create entry in DB
+   
 
     const user = await User.create({
         fullName,
         avatar: avatar.url,
-        coverImage: coverImage.url || "",
-        email,
+        coverImage: coverImage?.url || "",
+        email, 
         password,
-        username:username.toLowerCase()
+        username: username.toLowerCase()
     })
 
-    // remove password and refreshtoken field from response
-    const createdUser = await User.findById(user._id).select("-password -refreshToken")
+    const createdUser = await User.findById(user._id).select(
+        "-password -refreshToken"
+    )
 
-    //check for user creation
-    if(!createdUser){
-        throw new ApiError(500,"Something went wrong while register User")
+    if (!createdUser) {
+        throw new ApiError(500, "Something went wrong while registering the user")
     }
 
-     //return response
-
-    return res.status(200).json(
-        new ApiResponse(200,createdUser,"User Register Successfully")
+    return res.status(201).json(
+        new ApiResponse(200, createdUser, "User registered Successfully")
     )
-    // remove password and refreshtoken field from response
 
 })
 
